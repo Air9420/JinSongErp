@@ -2,7 +2,7 @@
  * @Author: error: git config user.name && git config user.email & please set dead value or install git
  * @Date: 2022-08-03 17:23:58
  * @LastEditors: error: git config user.name && git config user.email & please set dead value or install git
- * @LastEditTime: 2022-08-15 17:16:50
+ * @LastEditTime: 2022-08-21 21:46:31
  * @FilePath: \my-vue-app\src\views\HomeView.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -12,11 +12,10 @@
     <div class="tableView" ref="tableViewRef" id="table">
       <div class="headerView" v-if="!is_print">
         <span>劲松电器制冷修配总汇</span>
-        <QrcodeVue
-          class="Qrcode"
-          :size="100"
-          value="99910774008315904"
-        />
+        <div class="QrcodeView">
+          <QrcodeVue :size="100" :value="qrcodeValue" />
+          <div>{{ qrcodeValue }}</div>
+        </div>
       </div>
       <div class="infoView" v-if="!is_print">
         <span>订货电话：0752-3383111</span>
@@ -72,7 +71,7 @@
                 @blur="inputBlur"
               /> -->
             </span>
-            <span v-else>{{ scope.row?.select?.name }}</span>
+            <span v-else>{{ scope.row?.name }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -238,7 +237,7 @@
         icon="Printer"
         color="rgb(245,108,108)"
         size="default"
-        @click="printTable"
+        @click="generate_bill"
         :style="{ color: '#fff' }"
       >
         生成账单
@@ -251,11 +250,11 @@
 // 打印插件
 import printJS from "print-js";
 import html2canvas from "html2canvas";
-import { reactive, ref, h, nextTick } from "vue";
+import { reactive, ref, h, nextTick, getCurrentInstance } from "vue";
 import { useUserInfo } from "../stores/counter";
 // 二维码组件
 import QrcodeVue from "qrcode.vue";
-// import { ElImage } from "element-plus";
+const { proxy } = getCurrentInstance() as any;
 const userInfo = useUserInfo();
 const state = reactive({
   tabClickRowIndex: null, // 点击的横单元格
@@ -266,10 +265,13 @@ const tableViewRef = ref();
 const tableRef = ref();
 const inputRef = ref();
 const selectRef = ref();
+// 二维码的内容
+let qrcodeValue = ref();
 // 打印时显示的内容
 const is_print = ref(true);
 // 所选中的商品 index 数组 number类型
 const selectGoodsIndex = ref<number[]>([]);
+// 表格数据
 let tableData = reactive<any[]>([
   {
     //商品名称
@@ -288,6 +290,8 @@ let tableData = reactive<any[]>([
     Price: "",
   },
 ]);
+// 合计金额
+let totalMoney = ref<number>(0);
 // 合计处理
 function summaryHandle(params: any) {
   let { data, columns } = params;
@@ -297,7 +301,7 @@ function summaryHandle(params: any) {
     (pre: number, cur: number) =>
       Math.ceil(pre * 100) / 100 + Math.ceil(cur * 100) / 100
   );
-
+  totalMoney.value = count;
   let countToReplace = (
     "￥" + parseFloat(Math.ceil(count * 100) / 100).toFixed(2)
   ).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -364,17 +368,30 @@ function delGoods(scope: any) {
       });
     });
 }
-// 打印表格
-async function printTable() {
+// 生成账单
+async function generate_bill() {
   inputBlur(false);
-  // 关闭非打印项
-  is_print.value = false;
   let delIndex = tableData.map((i) => (!i.select ? i.index : null)).reverse();
   delIndex.forEach((i, index) => i != null && tableData.splice(i, 1));
+  const loading = ElLoading.service({
+    lock: true,
+    text: "生成账单中...",
+    background: "rgba(0, 0, 0, 0.7)",
+  });
+  let { data: bill_no } = await proxy.$api
+    .created_bill({ tableData, totalMoney: totalMoney.value })
+    .catch((err: any) => {
+      console.log(err);
+    });
+  loading.close();
+  qrcodeValue.value = bill_no;
+  // 关闭非打印项
+  is_print.value = false;
   await nextTick();
   // 先将表格转换为图片
   let img = await html2canvas(tableViewRef.value);
   let imgurl = img.toDataURL("image/png");
+  proxy.$api.upload_bill_img({ imgurl, bill_no });
   await nextTick();
   // 开启非打印项
   is_print.value = true;
@@ -390,21 +407,28 @@ async function printTable() {
     confirmButtonText: "确认打印",
     cancelButtonText: "取消",
     customStyle: "width:800px !important;max-width:800px !important;",
-  }).then((action: any) => {
-    printJS({
-      printable: imgurl, // 标签元素id
-      type: "image", // 打印类型，html或pdf
-      // header: "劲松电器制冷修配总汇",
-      // headerStyle: "font-weight: bold;text-align: center;", // 标题样式
-      targetStyles: ["*"],
-      style: "@page {margin:0mm 10mm};",
-      maxWidth: tableViewRef.value.offsetWidth,
+  })
+    .then((action: any) => {
+      printJS({
+        printable: imgurl, // 标签元素id
+        type: "image", // 打印类型，html或pdf
+        // header: "劲松电器制冷修配总汇",
+        // headerStyle: "font-weight: bold;text-align: center;", // 标题样式
+        targetStyles: ["*"],
+        style: "@page {margin:0mm 10mm};",
+        maxWidth: tableViewRef.value.offsetWidth,
+      });
+      ElMessage({
+        type: "success",
+        message: "执行成功",
+      });
+    })
+    .catch((err: any) => {
+      ElMessage({
+        type: "warning",
+        message: "操作取消",
+      });
     });
-    ElMessage({
-      type: "success",
-      message: "执行成功",
-    });
-  });
   return;
   // 关闭非打印项
   // is_print.value = false;
@@ -487,6 +511,7 @@ function selectChange($event: any, val: any) {
   console.log($event, val);
   tableData[val.$index].unit = $event.unit;
   tableData[val.$index].buying_price = $event.buying_price;
+  tableData[val.$index].name = $event.name;
   !tableData[val.$index + 1] && addGoods();
 }
 // 获取当前年月日时分秒
@@ -565,12 +590,19 @@ function selectHandle(selection: any) {
       height: 100px;
       position: relative;
       text-align: center;
+      line-height: 100px;
       font-size: 40px;
       font-weight: bold;
       padding: 32px 0;
-      .Qrcode {
+      .QrcodeView {
+        font-size: 12px;
+        line-height: 32px;
         position: absolute;
         right: 32px;
+        top: 32px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
     }
     .infoView {

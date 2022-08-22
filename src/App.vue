@@ -2,7 +2,7 @@
  * @Author: error: git config user.name && git config user.email & please set dead value or install git
  * @Date: 2022-08-02 23:47:09
  * @LastEditors: error: git config user.name && git config user.email & please set dead value or install git
- * @LastEditTime: 2022-08-13 06:48:31
+ * @LastEditTime: 2022-08-22 12:14:08
  * @FilePath: \my-vue-app\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -140,18 +140,23 @@ const menuOption = reactive({
 
 // 获取商品列表
 function getGoodsList() {
-  proxy.$api
-    .get_goods_list({ id: 1 })
-    .then((res: any) => {
-      userInfo.goodsArr = res.data.list.map((i: any) => {
-        i.is_Submit = true;
-        i.create_time = i.create_time.split("T").join(" ").split(".")[0];
-        return i;
+  return new Promise<void>((resolve, reject) => {
+    if (!userInfo.token) return reject();
+    proxy.$api
+      .get_goods_list({ id: 1 })
+      .then((res: any) => {
+        resolve(res);
+        userInfo.goodsArr = res.data.list.map((i: any) => {
+          i.is_Submit = true;
+          i.create_time = i.create_time.split("T").join(" ").split(".")[0];
+          return i;
+        });
+      })
+      .catch((err: any) => {
+        reject(err);
+        console.log(err);
       });
-    })
-    .catch((err: any) => {
-      console.log(err);
-    });
+  });
 }
 // 退出登录
 function logOut() {
@@ -164,21 +169,26 @@ function logOut() {
 
 // 获取类目列表
 function get_category_list() {
-  proxy.$api
-    .get_category_list()
-    .then(({ data: { list } }: any) =>
-      userInfo.setCategoryArr(
-        list.map((i: any) => {
-          i.is_Submit = true;
-          i.create_time = i.create_time.split("T").join(" ").split(".")[0];
-          i.path = "/Goods?id=" + i.id;
-          return i;
-        })
-      )
-    )
-    .catch((err: any) => {
-      console.log(err);
-    });
+  return new Promise<void>((resolve, reject) => {
+    if (!userInfo.token) return reject();
+    proxy.$api
+      .get_category_list()
+      .then(({ data: { list } }: any) => {
+        resolve(list);
+        userInfo.setCategoryArr(
+          list.map((i: any) => {
+            i.is_Submit = true;
+            i.create_time = i.create_time.split("T").join(" ").split(".")[0];
+            i.path = "/Goods?id=" + i.id;
+            return i;
+          })
+        );
+      })
+      .catch((err: any) => {
+        reject(err);
+        console.log(err);
+      });
+  });
 }
 
 // 菜单点击事件
@@ -201,9 +211,16 @@ watch(
 );
 watch(
   () => route.fullPath,
-  (newValue, oldValue) => {
-    getGoodsList();
-    get_category_list();
+  async (newValue, oldValue) => {
+    const loading = ElLoading.service({
+      lock: true,
+      text: "请求数据中...",
+      background: "rgba(0, 0, 0, 0.7)",
+    });
+    await Promise.all([getGoodsList(), get_category_list()]).catch((err) => {
+      console.log(err);
+    });
+    loading.close();
     let item: any;
     menuOption.items.forEach((i: any) => {
       if (i.path == newValue) {
@@ -220,7 +237,7 @@ watch(
     });
     item && menuClickHandle(item);
   },
-  { immediate: true }
+  { immediate: false }
 );
 </script>
 
