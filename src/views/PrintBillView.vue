@@ -2,7 +2,7 @@
  * @Author: error: git config user.name && git config user.email & please set dead value or install git
  * @Date: 2022-08-03 17:23:58
  * @LastEditors: error: git config user.name && git config user.email & please set dead value or install git
- * @LastEditTime: 2022-08-21 21:46:31
+ * @LastEditTime: 2022-08-23 22:34:45
  * @FilePath: \my-vue-app\src\views\HomeView.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -23,7 +23,7 @@
       </div>
       <el-table
         ref="tableRef"
-        :data="tableData"
+        :data="userInfo.tableData"
         show-summary
         sum-text="合计"
         :summary-method="summaryHandle"
@@ -271,25 +271,6 @@ let qrcodeValue = ref();
 const is_print = ref(true);
 // 所选中的商品 index 数组 number类型
 const selectGoodsIndex = ref<number[]>([]);
-// 表格数据
-let tableData = reactive<any[]>([
-  {
-    //商品名称
-    name: "",
-    //规格
-    specifications: "",
-    // 进货价
-    buying_price: "0",
-    //单位
-    unit: "",
-    //数量
-    count: "1",
-    //单价
-    unitPrice: "0",
-    //总价
-    Price: "",
-  },
-]);
 // 合计金额
 let totalMoney = ref<number>(0);
 // 合计处理
@@ -313,7 +294,8 @@ function summaryHandle(params: any) {
 }
 // 总金额处理
 function totalPriceHandle(scope: any) {
-  tableData[scope.$index].Price = scope.row.count * scope.row.unitPrice;
+  userInfo.tableData[scope.$index].Price =
+    scope.row.count * scope.row.unitPrice;
   let totalPriceStr =
     "￥" +
     parseFloat(
@@ -323,7 +305,7 @@ function totalPriceHandle(scope: any) {
 }
 // 添加商品
 function addGoods() {
-  tableData.push({
+  userInfo.tableData.push({
     //商品名称
     name: "",
     //规格
@@ -349,13 +331,14 @@ function addGoods() {
 }
 // 删除商品
 function delGoods(scope: any) {
+  // @ts-ignore
   ElMessageBox.confirm("是否删除该商品?", "小提示", {
     confirmButtonText: "是的",
     cancelButtonText: "取消",
     type: "warning",
   })
     .then(() => {
-      tableData.splice(scope.$index, 1);
+      userInfo.tableData.splice(scope.$index, 1);
       ElMessage({
         type: "success",
         message: "删除成功!",
@@ -371,15 +354,22 @@ function delGoods(scope: any) {
 // 生成账单
 async function generate_bill() {
   inputBlur(false);
-  let delIndex = tableData.map((i) => (!i.select ? i.index : null)).reverse();
-  delIndex.forEach((i, index) => i != null && tableData.splice(i, 1));
+  let delIndex = userInfo.tableData
+    .map((i) => (!i.select ? i.index : null))
+    .reverse();
+  delIndex.forEach((i, index) => i != null && userInfo.tableData.splice(i, 1));
+  await nextTick();
+  // @ts-ignore
   const loading = ElLoading.service({
     lock: true,
     text: "生成账单中...",
     background: "rgba(0, 0, 0, 0.7)",
   });
   let { data: bill_no } = await proxy.$api
-    .created_bill({ tableData, totalMoney: totalMoney.value })
+    .created_bill({
+      tableData: userInfo.tableData,
+      totalMoney: totalMoney.value,
+    })
     .catch((err: any) => {
       console.log(err);
     });
@@ -395,8 +385,10 @@ async function generate_bill() {
   await nextTick();
   // 开启非打印项
   is_print.value = true;
+  // @ts-ignore
   ElMessageBox({
     title: "点击预览图片",
+    // @ts-ignore
     message: h(ElImage, {
       style: "width:100%;height:400px;",
       src: imgurl,
@@ -429,39 +421,6 @@ async function generate_bill() {
         message: "操作取消",
       });
     });
-  return;
-  // 关闭非打印项
-  // is_print.value = false;
-  // let delIndex = tableData.map((i) => (!i.select ? i.index : null)).reverse();
-  // delIndex.forEach((i, index) => i != null && tableData.splice(i, 1));
-  // nextTick(async () => {
-  //   // 先将表格转换为图片
-  //   let img = await html2canvas(tableViewRef.value);
-  //   let imgurl = img.toDataURL("image/png");
-  //   printJS({
-  //     printable: imgurl, // 标签元素id
-  //     type: "image", // 打印类型，html或pdf
-  //     header: "劲松电器制冷修配总汇",
-  //     headerStyle: "font-weight: bold;text-align: center;", // 标题样式
-  //     targetStyles: ["*"],
-  //     style: "@page {margin:0mm 10mm};",
-  //     maxWidth: tableViewRef.value.offsetWidth,
-  //     // onPrintDialogClose: () => {
-  //     //   console.log("打印结束");
-
-  //     //   // 开启非打印项
-  //     //   is_print.value = true;
-  //     // },
-  //     // onError: (err: any) => {
-  //     //   console.log(err);
-  //     //   console.log("打印出错");
-  //     // },
-  //   });
-  //   nextTick(() => {
-  //     // 开启非打印项
-  //     is_print.value = true;
-  //   });
-  // });
 }
 // 判断是否点击到了自己
 function tableClickToMe(scope: any) {
@@ -509,10 +468,10 @@ function inputBlur(val: boolean) {
 // 下拉框选择改变
 function selectChange($event: any, val: any) {
   console.log($event, val);
-  tableData[val.$index].unit = $event.unit;
-  tableData[val.$index].buying_price = $event.buying_price;
-  tableData[val.$index].name = $event.name;
-  !tableData[val.$index + 1] && addGoods();
+  userInfo.tableData[val.$index].unit = $event.unit;
+  userInfo.tableData[val.$index].buying_price = $event.buying_price;
+  userInfo.tableData[val.$index].name = $event.name;
+  !userInfo.tableData[val.$index + 1] && addGoods();
 }
 // 获取当前年月日时分秒
 function getNowFormatDate() {
@@ -554,7 +513,7 @@ function getNowFormatDate() {
 function delAllSelect(scope: any) {
   let reverse = selectGoodsIndex.value;
   reverse.forEach((i) => {
-    tableData.splice(i, 1);
+    userInfo.tableData.splice(i, 1);
   });
 }
 // 选中时触发
@@ -612,6 +571,12 @@ function selectHandle(selection: any) {
     }
   }
   .buttonView {
+    // 点击穿透
+    pointer-events: none;
+    .el-button {
+      // 点击不穿透
+      pointer-events: auto;
+    }
     z-index: 10;
     width: calc(100% - 32px);
     position: fixed;

@@ -2,7 +2,7 @@
  * @Author: error: git config user.name && git config user.email & please set dead value or install git
  * @Date: 2022-08-02 23:47:09
  * @LastEditors: error: git config user.name && git config user.email & please set dead value or install git
- * @LastEditTime: 2022-08-22 12:14:08
+ * @LastEditTime: 2022-08-23 21:41:37
  * @FilePath: \my-vue-app\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -161,9 +161,7 @@ function getGoodsList() {
 // 退出登录
 function logOut() {
   const userInfo = useUserInfo();
-  userInfo.setUserInfo({
-    role: "tourist",
-  });
+  userInfo.initAll();
   router.push("/Login");
 }
 
@@ -197,6 +195,7 @@ function menuClickHandle(item: any) {
   item?.name != "退出登录" && (header.title = item?.name);
   item?.click?.();
 }
+
 watch(
   () => userInfo.categoryArr,
   () => {
@@ -212,15 +211,7 @@ watch(
 watch(
   () => route.fullPath,
   async (newValue, oldValue) => {
-    const loading = ElLoading.service({
-      lock: true,
-      text: "请求数据中...",
-      background: "rgba(0, 0, 0, 0.7)",
-    });
-    await Promise.all([getGoodsList(), get_category_list()]).catch((err) => {
-      console.log(err);
-    });
-    loading.close();
+    if (newValue === "/Login") return;
     let item: any;
     menuOption.items.forEach((i: any) => {
       if (i.path == newValue) {
@@ -236,8 +227,18 @@ watch(
       }
     });
     item && menuClickHandle(item);
+    // @ts-ignore
+    const loading = ElLoading.service({
+      lock: true,
+      text: "请求数据中...",
+      background: "rgba(0, 0, 0, 0.7)",
+    });
+    await Promise.all([getGoodsList(), get_category_list()]).catch((err) => {
+      console.log(err);
+    });
+    loading.close();
   },
-  { immediate: false }
+  { immediate: true }
 );
 </script>
 

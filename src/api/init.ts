@@ -2,7 +2,7 @@
  * @Author: error: git config user.name && git config user.email & please set dead value or install git
  * @Date: 2022-08-09 11:50:10
  * @LastEditors: error: git config user.name && git config user.email & please set dead value or install git
- * @LastEditTime: 2022-08-22 12:53:48
+ * @LastEditTime: 2022-08-23 22:45:31
  * @FilePath: \my-vue-app\src\api\index.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -17,7 +17,7 @@ import { useUserInfo } from "../stores/counter";
 const Axios = axios.create({
   baseURL: "http://192.168.31.168:3000/",
   // baseURL: "/api",
-  timeout: 2000, // 请求超时时间毫秒
+  timeout: 5000, // 请求超时时间毫秒
   withCredentials: true, // 异步请求携带cookie
   headers: {
     // 设置后端需要的传参类型
@@ -62,6 +62,12 @@ Axios.interceptors.response.use(
     }
   },
   function (error) {
+    if (error.code === "ECONNABORTED") {
+      ElMessage({
+        type: "warning",
+        message: "请求超时2秒",
+      });
+    }
     // 超出 2xx 范围的状态码都会触发该函数。
     // 对响应错误做点什么
     console.log(error);
